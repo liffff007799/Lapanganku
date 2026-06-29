@@ -1,112 +1,86 @@
 <?php
 session_start();
+include 'koneksi.php'; // Pastikan path file ini benar
 
-// Proteksi Halaman: Jika pengguna belum login, langsung alihkan ke login.php
-if(!isset($_SESSION['id'])){
-    header("Location: login.php");
-    exit;
+// Pastikan variabel $koneksi terdefinisi
+global $koneksi;
+
+if (!isset($_SESSION['id'])) { header("Location: login.php"); exit; }
+if (!isset($_GET['id'])) { header("Location: lapangan.php"); exit; }
+
+$id_lapangan = intval($_GET['id']);
+
+// Ambil data lapangan
+$query = mysqli_query($koneksi, "SELECT * FROM lapangan WHERE id_lapangan = '$id_lapangan'");
+if (!$query || mysqli_num_rows($query) === 0) { die("Lapangan tidak ditemukan."); }
+$lapangan = mysqli_fetch_assoc($query);
+
+// Proses Booking
+$error = '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['proses_booking'])) {
+    $id_slot = intval($_POST['slot_id'] ?? 0);
+    $tanggal = mysqli_real_escape_string($koneksi, $_POST['tanggal'] ?? '');
+    $catatan = mysqli_real_escape_string($koneksi, $_POST['catatan'] ?? '');
+    
+    if (empty($tanggal) || $id_slot == 0) {
+        $error = "Silakan pilih tanggal dan slot waktu.";
+    } else {
+        $user_id = $_SESSION['id'];
+        $harga   = $lapangan['harga_per_jam'];
+        
+        $sql = "INSERT INTO pemesanan (id_user, id_lapangan, id_slot, tanggal, total_harga, status, catatan) 
+                VALUES ('$user_id', '$id_lapangan', '$id_slot', '$tanggal', '$harga', 'pending', '$catatan')";
+        
+        if (mysqli_query($koneksi, $sql)) {
+            header("Location: riwayat.php?success=1");
+            exit;
+        } else {
+            $error = "Database Error: " . mysqli_error($koneksi);
+        }
+    }
 }
 ?>
-
 <!DOCTYPE html>
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - LapanganKu</title>
-
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-
+    <title>Booking <?= htmlspecialchars($lapangan['nama_lapangan']) ?></title>
     <style>
-        body {
-            background:
-            linear-gradient(rgba(0,0,0,0.65), rgba(0,0,0,0.65)),
-            url('https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=1600&q=80');
-            background-size: cover;
-            background-position: center;
-            min-height: 100vh;
-            color: white;
-            font-family: sans-serif;
-        }
-
-        .glass {
-            background: rgba(255,255,255,0.10);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border-radius: 20px;
-            border: 1px solid rgba(255,255,255,0.2);
-        }
-
-        .menu-card {
-            transition: 0.3s;
-        }
-
-        .menu-card:hover {
-            transform: translateY(-8px);
-            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
-        }
-
-        .title-big {
-            font-size: 50px;
-            font-weight: bold;
-        }
-
-        .subtitle {
-            color: #dcdcdc;
-        }
+        body { font-family: sans-serif; background: #f4f4f4; padding: 20px; }
+        .card { background: #fff; padding: 25px; border-radius: 10px; max-width: 600px; margin: auto; }
+        .slot-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 20px 0; }
+        .slot-item { padding: 15px; border: 1px solid #ddd; border-radius: 8px; text-align: center; cursor: pointer; }
+        .error { color: #a94442; background: #f2dede; padding: 10px; border-radius: 5px; margin-bottom: 15px; }
     </style>
 </head>
 <body>
-
-<div class="container py-5">
-
-    <div class="text-center mb-5">
-        <h1 class="title-big">⚽ LapanganKu</h1>
-        <h4>Selamat Datang, <?php echo htmlspecialchars($_SESSION['nama']); ?> 👋</h4>
-        <p class="subtitle">
-            Booking lapangan futsal lebih cepat dan lebih mudah
-        </p>
+    <div class="card">
+        <h2>Booking: <?= htmlspecialchars($lapangan['nama_lapangan']) ?></h2>
+        <?php if ($error) echo "<div class='error'>$error</div>"; ?>
+        
+        <form method="POST">
+            <label>Tanggal Booking:</label>
+            <input type="date" name="tanggal" required class="form-control" style="width:100%; margin-bottom:15px;">
+            
+            <label>Pilih Jam:</label>
+            <div class="slot-grid">
+                <?php 
+                // Menggunakan DISTINCT untuk menghindari error sql_mode
+                $q = mysqli_query($koneksi, "SELECT DISTINCT id_slot, jam_mulai, jam_selesai FROM jadwal_slot ORDER BY jam_mulai ASC");
+                if ($q) {
+                    while ($s = mysqli_fetch_assoc($q)) {
+                        echo "<label class='slot-item'>
+                                <input type='radio' name='slot_id' value='{$s['id_slot']}'> 
+                                <br>".substr($s['jam_mulai'], 0, 5)."
+                              </label>";
+                    }
+                }
+                ?>
+            </div>
+            
+            <textarea name="catatan" placeholder="Catatan tambahan..." style="width:100%; margin-bottom:15px;"></textarea>
+            <button type="submit" name="proses_booking" style="width:100%; padding:12px; background:green; color:white; border:none; cursor:pointer;">Konfirmasi Booking</button>
+        </form>
     </div>
-
-    <div class="row g-4 justify-content-center">
-
-        <div class="col-md-3">
-            <div class="glass p-4 text-center menu-card">
-                <div class="fs-1 mb-2">🏟</div>
-                <h4>Lihat Lapangan</h4>
-                <p class="small text-white-50">Lihat semua lapangan futsal tersedia</p>
-                <a href="lapangan.php" class="btn btn-success w-100 fw-bold">
-                    Masuk
-                </a>
-            </div>
-        </div>
-
-        <div class="col-md-3">
-            <div class="glass p-4 text-center menu-card">
-                <div class="fs-1 mb-2">📜</div>
-                <h4>Riwayat Booking</h4>
-                <p class="small text-white-50">Cek semua booking yang pernah dibuat</p>
-                <a href="riwayat.php" class="btn btn-warning w-100 fw-bold text-dark">
-                    Lihat
-                </a>
-            </div>
-        </div>
-
-        <div class="col-md-3">
-            <div class="glass p-4 text-center menu-card">
-                <div class="fs-1 mb-2">🚪</div>
-                <h4>Logout</h4>
-                <p class="small text-white-50">Keluar dari akun saat ini</p>
-                <a href="logout.php" class="btn btn-danger w-100 fw-bold" onclick="return confirm('Yakin ingin logout?')">
-                    Logout
-                </a>
-            </div>
-        </div>
-
-    </div>
-
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
