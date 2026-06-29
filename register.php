@@ -11,7 +11,7 @@ if(isset($_POST['register'])){
     mysqli_query(
         $koneksi,
         "INSERT INTO users (nama,email,password)
-        VALUES ('$nama','$email','$password')"
+        VALUES ('$nama','$email','$password'),'$no_hp'" 
     );
 
     echo "<script>
