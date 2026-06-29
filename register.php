@@ -6,7 +6,8 @@ if(isset($_POST['register'])){
     $nama = $_POST['nama'];
     $email = $_POST['email'];
     $password = $_POST['password'];
-
+    $no_hp = $_POST['no_hp'];
+    
     mysqli_query(
         $koneksi,
         "INSERT INTO users (nama,email,password)
